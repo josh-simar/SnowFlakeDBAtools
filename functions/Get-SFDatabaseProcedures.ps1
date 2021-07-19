@@ -1,8 +1,8 @@
 ﻿function Get-SFDatabaseProcedures {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
-        [PSObject]$Database,
-        [PSObject]$Schema,
+        [string]$Database,
+        [string]$Schema,
         [string]$UID,
         [string]$Authenticator = "snowflake",
         [string]$Role,
@@ -11,36 +11,16 @@
     )
     PROCESS {
         $Procedures = @()
+        $QueryResults = @()
         $ObjectsQuery = "SHOW PROCEDURES IN ACCOUNT;"
-        $QueryResults = Get-SFQueryResults -Query $ObjectsQuery -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Verbose:$VerbosePreference -Debug:$DebugPreference
-        ForEach ($Procedure in $QueryResults) {
-            IF ($Procedure.schema_name -ne "INFORMATION_SCHEMA") {
-                $ProcedureRow = New-Object -TypeName PSObject
-                $ProcedureWithoutReturns = $($($($Procedure.arguments).Split(')'))[0])
-                $ProcedureWithoutReturns = "$ProcedureWithoutReturns)"
-                Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Procedure.catalog_name)"
-                Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'SchemaName' -Value "$($Procedure.schema_name)"
-                Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'ProgrammingType' -Value "PROCEDURE"
-                Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'ProcedureName' -Value "$ProcedureWithoutReturns"
-                $Procedures += $ProcedureRow
-            }
-        }
-        $ObjectsQuery = "SHOW USER FUNCTIONS IN ACCOUNT;"
-        $QueryResults = Get-SFQueryResults -Query $ObjectsQuery -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Verbose:$VerbosePreference -Debug:$DebugPreference
-        ForEach ($UserFunction in $QueryResults) {
-            IF ($UserFunction.schema_name -ne "INFORMATION_SCHEMA") {
-                $UserFunctionRow = New-Object -TypeName PSObject
-                $UserFunctionWithoutReturns = $($($($UserFunction.arguments).Split(')'))[0])
-                $UserFunctionWithoutReturns = "$UserFunctionWithoutReturns)"
-                Add-Member -InputObject $UserFunctionRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($UserFunction.catalog_name)"
-                Add-Member -InputObject $UserFunctionRow -MemberType 'NoteProperty' -Name 'SchemaName' -Value "$($UserFunction.schema_name)"
-                Add-Member -InputObject $UserFunctionRow -MemberType 'NoteProperty' -Name 'ProgrammingType' -Value "FUNCTION"
-                Add-Member -InputObject $UserFunctionRow -MemberType 'NoteProperty' -Name 'ProcedureName' -Value "$UserFunctionWithoutReturns"
-                $Procedures += $UserFunctionRow
-            }
-        }
-
-
-        RETURN $Procedures
+        If ($Database) {$ObjectsQuery = "SHOW PROCEDURES IN DATABASE $Database;"}
+        If ($Database -and $Schema) {$ObjectsQuery = "SHOW PROCEDURES IN SCHEMA $Database.$Schema;"}
+        [Array]$QueryResults = Get-SFQueryResults -Query $ObjectsQuery -UID $UID -Authenticator $Authenticator -Warehouse $Warehouse -Role $Role -Server $Server -Verbose:$VerbosePreference -Debug:$DebugPreference
+        [Array]$QueryResults = $QueryResults | Where-Object {$_.schema_name -ne "INFORMATION_SCHEMA"}
+        If ($Database) {$QueryResults = $QueryResults | Where-Object {$_.catalog_name}}
+        $QueryResultsScrubbed = $QueryResults | Select-Object @{Name='DB'; Expression={$_.catalog_name}},@{Name='SchemaName'; Expression={"$($_.schema_name)"}},@{Name='ProcedureName'; Expression={"$($_.name)"}},@{Name='ProcedureParameters'; Expression={$($($_.arguments).Split('(')[1].Split(')')[0])}}
+        $Procedures = $QueryResultsScrubbed | Select-Object @{Name='DB'; Expression={$_.DB}},@{Name='SchemaName'; Expression={"$($_.SchemaName)"}},@{Name='ProcedureName'; Expression={"$($_.ProcedureName)"}},@{Name='ProcedureParameters'; Expression={"($($_.ProcedureParameters))"}}
+        RETURN [Array]$Procedures
     }
 }
+
