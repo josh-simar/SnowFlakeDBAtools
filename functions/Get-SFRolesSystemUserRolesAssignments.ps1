@@ -1,23 +1,22 @@
 ﻿function Get-SFRolesSystemUserRolesAssignments {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
+        [string]$UID,
+        [string]$Authenticator,
+        [string]$Role,
+        [string]$Warehouse,
+        [string]$Server
     )
     PROCESS {
-
-        $Users = Get-SFQueryResults @ConnectionHash -Query "SHOW USERS;" -Verbose:$VerbosePreference
-
+        $Users = Get-SFQueryResults -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Query "SHOW USERS;" -Verbose:$VerbosePreference
         $UserGrants = @()
         ForEach ($User in $Users) {
-            $UserRights = Get-SFQueryResults @ConnectionHash -Query "SHOW GRANTS TO USER $($User.name);"
-
-            ForEach ($Role in $UserRights) {
-                #If (!($Child.name -eq "SECURITYADMIN" -and $Child.grantee_name -eq "ACCOUNTADMIN") -xor ($Child.name -eq "SYSADMIN" -and $Child.grantee_name -eq "ACCOUNTADMIN") -xor ($Child.name -eq "USERADMIN" -and $Child.grantee_name -eq "SECURITYADMIN")) {
-                    $UserGrants += "GRANT ROLE $($Role.role) TO USER $($Role.grantee_name);"
-                    #GRANT ROLE ETL_DEVELOPER TO USER BHAVANI_SANKAR;
-                #}
+            $Query = "SHOW GRANTS TO USER ""$($User.name)"";"
+            $UserRights = Get-SFQueryResults -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Query $Query
+            ForEach ($UserRole in $UserRights) {
+                    $UserGrants += "GRANT ROLE $($UserRole.role) TO USER ""$($UserRole.grantee_name)"";"
             }
         }
-
         RETURN $UserGrants
     }
 }

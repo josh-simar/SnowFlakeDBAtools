@@ -15,10 +15,8 @@
                     IF ($($Database.Name) -like $($accountObjectPrivilege.Databases)) {
                         ForEach ($Role in $accountObjectPrivilege.Roles ) {
                             IF ($Database.Shared -eq "False" -or $($accountObjectPrivilege.Databases) -eq $($Database.Name)) {
-                                If ($Database.Name -ne "UTIL_DB") {
-                                    ForEach ($Privilege in $($accountObjectPrivilege.Privileges)) {
-                                        $FileSFaccountObjectPrivileges += "GRANT $Privilege ON DATABASE $($Database.Name) TO ROLE $Role;"
-                                    }
+                                ForEach ($Privilege in $($accountObjectPrivilege.Privileges)) {
+                                    $FileSFaccountObjectPrivileges += "GRANT $Privilege ON DATABASE $($Database.Name) TO ROLE $Role;"
                                 }
                             }
                         }

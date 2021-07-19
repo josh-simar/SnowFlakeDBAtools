@@ -1,8 +1,8 @@
 ﻿function Get-SFDatabaseTables {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
-        [PSObject]$Database,
-        [PSObject]$Schema,
+        [string]$Database,
+        [string]$Schema,
         [string]$UID,
         [string]$Authenticator = "snowflake",
         [string]$Role,
@@ -11,23 +11,12 @@
     )
     PROCESS {
         $Tables = @()
-        [int]$CurrentPercent = 0
-        $CurrentTableCount = 0
-        Write-Progress -Activity "Retrieving Account Tables" -Status "$CurrentPercent% Complete:" -PercentComplete $CurrentPercent
         $ObjectsQuery = "SHOW TABLES IN ACCOUNT;"
+        If ($Database) {$ObjectsQuery = "SHOW TABLES IN DATABASE $Database;"}
+        If ($Database -and $Schema) {$ObjectsQuery = "SHOW TABLES IN SCHEMA $Database.$Schema;"}
         $QueryResults = Get-SFQueryResults -Query $ObjectsQuery -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Verbose:$VerbosePreference -Debug:$DebugPreference
-        ForEach ($Table in $QueryResults) {
-            $CurrentTableCount ++
-            [int]$CurrentPercent = $CurrentTableCount / $($QueryResults.Count) * 100
-            Write-Progress -Activity "Retrieving Account Tables" -Status "$CurrentPercent% Complete:" -PercentComplete $CurrentPercent
-            IF ($Table.schema_name -ne "INFORMATION_SCHEMA" -and $Table.kind -eq "TABLE") {
-                $TableRow = New-Object -TypeName PSObject
-                Add-Member -InputObject $TableRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Table.database_name)"
-                Add-Member -InputObject $TableRow -MemberType 'NoteProperty' -Name 'SchemaName' -Value "$($Table.schema_name)"
-                Add-Member -InputObject $TableRow -MemberType 'NoteProperty' -Name 'TableName' -Value "$($Table.name)"
-                $Tables += $TableRow
-            }
-        }
+        $QueryResults = $QueryResults | Where-Object {$_.schema_name -ne "INFORMATION_SCHEMA" -and $_.kind -eq "TABLE"}
+        $Tables = $QueryResults | Select-Object @{Name='DB'; Expression={$_.database_name}},@{Name='SchemaName'; Expression={$_.schema_name}},@{Name='TableName'; Expression={$_.name}}
         RETURN $Tables
     }
 }

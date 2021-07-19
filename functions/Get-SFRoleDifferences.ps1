@@ -6,13 +6,40 @@
         [PSObject]$SystemUsersInRoles,
         [PSObject]$FileUsersInRoles,
         [PSObject]$SystemRolesInRoles,
-        [PSObject]$FileRolesInRoles
+        [PSObject]$FileRolesInRoles,
+        [PSObject]$SystemRoles,
+        [PSObject]$FileRoles,
+        [PSObject]$SystemUsers,
+        [PSObject]$FileUsers
     )
     PROCESS {
         
         $accountRevoke = @()
         $accountGrant = @()
         $accountGood = @()
+
+        $accountRevoke += "//Roles to Create"
+        $accountGrant += "//Roles to Create"
+        $accountGood += "//Roles to Create"
+
+        $Roles = Compare-Object -ReferenceObject $FileRoles -DifferenceObject $SystemRoles -IncludeEqual
+        ForEach ($Line in $Roles) {
+            IF ($Line.SideIndicator -eq "=>") { $accountRevoke += $($Line.InputObject) -replace 'CREATE ', 'DROP ' -replace ' IF NOT EXISTS ', ' ' }
+            IF ($Line.SideIndicator -eq "<=") { $accountGrant += "$($Line.InputObject)" }
+            IF ($Line.SideIndicator -eq "==") { $accountGood += "$($Line.InputObject)" }
+        }
+
+        $accountRevoke += "//Users to Create"
+        $accountGrant += "//Users to Create"
+        $accountGood += "//Users to Create"
+
+        $Roles = Compare-Object -ReferenceObject $FileUsers -DifferenceObject $SystemUsers -IncludeEqual
+        ForEach ($Line in $Roles) {
+            $Password = [System.Web.Security.Membership]::GeneratePassword(12, 2)
+            IF ($Line.SideIndicator -eq "=>") { $accountRevoke += $($Line.InputObject) -replace 'CREATE ', 'DROP ' -replace ' IF NOT EXISTS ', ' ' }
+            IF ($Line.SideIndicator -eq "<=") { $accountGrant += "$($Line.InputObject) PASSWORD = '$Password'" }
+            IF ($Line.SideIndicator -eq "==") { $accountGood += "$($Line.InputObject)" }
+        }
 
         $accountRevoke += "//Role based Roles"
         $accountGrant += "//Role based Roles"

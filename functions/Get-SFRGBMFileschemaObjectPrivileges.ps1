@@ -7,8 +7,10 @@
         [PSObject]$Tables,
         [PSObject]$Views,
         [PSObject]$Procedures,
+        [PSObject]$Functions,
         [PSObject]$Stages,
         [PSObject]$Sequences,
+        [PSObject]$FileFormats,
         [string]$UID,
         [string]$Authenticator = "snowflake",
         [string]$Role,
@@ -17,21 +19,26 @@
         [switch]$SkipTables,
         [switch]$SkipViews,
         [switch]$SkipProcedures,
+        [switch]$SkipFunctions,
         [switch]$SkipSequences,
         [switch]$SkipStages,
-        [switch]$SkipFutures
+        [switch]$SkipFileFormats,
+        [switch]$SkipFutures,
+        [string]$Purpose
     )
     PROCESS {
         $FileSFschemaObjectPrivileges = @()
-        Foreach ($schemaObjectPrivilege in $SFRGBMFile.schemaObjectPrivileges) {
+        $schemaObjectPrivileges = $SFRGBMFile.schemaObjectPrivileges
+        IF ($Purpose) { $schemaObjectPrivileges = $schemaObjectPrivileges | Where-Object { $_.Purpose -eq $Purpose } }
+        Foreach ($schemaObjectPrivilege in $schemaObjectPrivileges) {
             Write-Progress -Activity $schemaObjectPrivilege.Purpose
             ForEach ($Database in $Databases) {
                 $schemaObjectPrivilege.Databases = $schemaObjectPrivilege.Databases -replace '%', "*"
                 IF ($($Database.Name) -like $($schemaObjectPrivilege.Databases)) {
                     $DbSchemas = $Schemas | Where-Object {$_.DB -eq $($Database.Name)};
-                ForEach ($Schema in $DbSchemas) {
+                    ForEach ($Schema in $DbSchemas) {
                         $schemaObjectPrivilege.Schemas = $schemaObjectPrivilege.Schemas -replace '%', "*"
-                        IF ($Schema -like $($schemaObjectPrivilege.Schemas)) {
+                        IF ($($Schema.SchemaName) -like $($schemaObjectPrivilege.Schemas)) {
                             IF (!($SkipTables)) {
                                 $schemaObjectPrivilege.Tables = $schemaObjectPrivilege.Tables -replace '%', "*"
                                 $DBTables = $Tables | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)};
@@ -95,8 +102,29 @@
                                                     If ($Privilege -in 'USAGE') {
                                                         $ProcedureRow = New-Object -TypeName PSObject
                                                         Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
-                                                        Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON $($Procedure.ProgrammingType) $($Database.Name).$($Schema.SchemaName).$($Procedure.ProcedureName) TO ROLE $Role;"
+                                                        Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON PROCEDURE $($Database.Name).$($Schema.SchemaName).$($Procedure.ProcedureName)$($Procedure.ProcedureParameters) TO ROLE $Role;"
                                                         $FileSFschemaObjectPrivileges += $ProcedureRow
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            IF (!($SkipFunctions)) {
+                                $schemaObjectPrivilege.Functions = $schemaObjectPrivilege.Functions -replace '%', "*"
+                                $DBFunctions = $Functions | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)};
+                                ForEach ($Function in $DBFunctions) {
+                                    Write-Verbose $Function
+                                    IF ($Function -like $($schemaObjectPrivilege.Functions)) {
+                                        ForEach ($Role in $schemaObjectPrivilege.Roles ) {
+                                            IF ($Database.Shared -eq "False") {
+                                                ForEach ($Privilege in $($schemaObjectPrivilege.Privileges)) {
+                                                    If ($Privilege -in 'USAGE') {
+                                                        $FunctionRow = New-Object -TypeName PSObject
+                                                        Add-Member -InputObject $FunctionRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
+                                                        Add-Member -InputObject $FunctionRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON FUNCTION $($Database.Name).$($Schema.SchemaName).$($Function.FunctionName)$($Function.FunctionParameters) TO ROLE $Role;"
+                                                        $FileSFschemaObjectPrivileges += $FunctionRow
                                                     }
                                                 }
                                             }
@@ -143,6 +171,26 @@
                                                         Add-Member -InputObject $StageRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
                                                         Add-Member -InputObject $StageRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON STAGE $($Database.Name).$($Schema.SchemaName).$($Stage.StageName) TO ROLE $Role;"
                                                         $FileSFschemaObjectPrivileges += $StageRow
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            IF (!($SkipFileFormats)) {
+                                $schemaObjectPrivilege.FileFormats = $schemaObjectPrivilege.FileFormats -replace '%', "*"
+                                $DBFileFormats = $FileFormats | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)};
+                                ForEach ($FileFormat in $DBFileFormats) {
+                                    IF ($FileFormat -like $($schemaObjectPrivilege.FileFormats)) {
+                                        ForEach ($Role in $schemaObjectPrivilege.Roles ) {
+                                            IF ($Database.Shared -eq "False") {
+                                                ForEach ($Privilege in $($schemaObjectPrivilege.Privileges)) {
+                                                    If ($Privilege -in 'USAGE' ) {
+                                                        $FileFormatRow = New-Object -TypeName PSObject
+                                                        Add-Member -InputObject $FileFormatRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
+                                                        Add-Member -InputObject $FileFormatRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON FILE FORMAT $($Database.Name).$($Schema.SchemaName).""$($FileFormat.FileFormatName)"" TO ROLE $Role;"
+                                                        $FileSFschemaObjectPrivileges += $FileFormatRow
                                                     }
                                                 }
                                             }
@@ -221,6 +269,20 @@
                                                     $FutureRow = New-Object -TypeName PSObject
                                                     Add-Member -InputObject $FutureRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
                                                     Add-Member -InputObject $FutureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON FUTURE SEQUENCES IN SCHEMA $($Database.Name).$($Schema.SchemaName) TO ROLE $Role;"
+                                                    $FileSFschemaObjectPrivileges += $FutureRow
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                IF ($schemaObjectPrivilege.FutureFileFormats) {
+                                    ForEach ($Role in $schemaObjectPrivilege.Roles ) {
+                                        IF ($Database.Shared -eq "False") {
+                                            ForEach ($Privilege in $($schemaObjectPrivilege.Privileges)) {
+                                                IF ($Privilege -in 'USAGE') {
+                                                    $FutureRow = New-Object -TypeName PSObject
+                                                    Add-Member -InputObject $FutureRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
+                                                    Add-Member -InputObject $FutureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $Privilege ON FUTURE FILE FORMATS IN SCHEMA $($Database.Name).$($Schema.SchemaName) TO ROLE $Role;"
                                                     $FileSFschemaObjectPrivileges += $FutureRow
                                                 }
                                             }

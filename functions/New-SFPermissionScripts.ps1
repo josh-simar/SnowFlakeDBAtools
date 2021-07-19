@@ -43,8 +43,6 @@
             $Good += ""
         }
         
-        $SFAccountObjectPermissions = @()
-        $FileAccountObjectPermissions = @()
         $FileSchemaPermissionsFile = @()
         $SFSchemaPermissionsFile = @()
         $FileSchemaObjectPermissionsFile = @()
@@ -64,9 +62,9 @@
                     $SFSchemaObjectPermissionsFile += $Row
             }
 
-            $SFAccountObjectPermissions      | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-accountObjectPrivileges-File.sql"
-            $FileAccountObjectPermissions    | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-accountObjectPrivileges-DB.sql"
-            $FileSchemaPermissionsFile       | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-schemaPrivileges-File.sql"
+            $SFAccountObjectPermissions      | Sort-Object | Out-File -FilePath "PS-accountObjectPrivileges-DB.sql"
+            $FileAccountObjectPermissions    | Sort-Object | Out-File "PS-accountObjectPrivileges-File.sql"
+            $FileSchemaPermissionsFile       | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Select-Object DB, Command | Out-File "PS-schemaPrivileges-File.sql"
             $SFSchemaPermissionsFile         | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-schemaPrivileges-DB.sql"
             $FileSchemaObjectPermissionsFile | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-schemaObjectPrivileges-File.sql"
             $SFSchemaObjectPermissionsFile   | Sort-Object -Property @{Expression={$_.Command.Trim()}; Ascending = $True} | Out-File "PS-schemaObjectPrivileges-DB.sql"

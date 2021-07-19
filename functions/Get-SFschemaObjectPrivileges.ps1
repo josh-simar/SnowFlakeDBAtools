@@ -8,6 +8,7 @@
         [PSObject]$Procedures,
         [PSObject]$Sequences,
         [PSObject]$Stages,
+        [PSObject]$FileFormats,
         [string]$UID,
         [string]$Authenticator = "snowflake",
         [string]$Role,
@@ -17,16 +18,18 @@
         [switch]$SkipViews,
         [switch]$SkipProcedures,
         [switch]$SkipSequences,
-        [switch]$SkipStages
+        [switch]$SkipStages,
+        [switch]$SkipFileFormats
     )
     PROCESS {
         $SFschemaObjectPrivileges = @()
         $AccountObjectsCount = 0
-        If (!($SkipTables))     { $AccountObjectsCount += $($Tables.Count) }
-        If (!($SkipViews))      { $AccountObjectsCount += $($Views.Count) }
-        If (!($SkipProcedures)) { $AccountObjectsCount += $($Procedures.Count) }
-        If (!($SkipSequences))  { $AccountObjectsCount += $($Sequences.Count) }
-        If (!($SkipStages))     { $AccountObjectsCount += $($Stages.Count) }
+        If (!($SkipTables))      { $AccountObjectsCount += $($Tables.Count) }
+        If (!($SkipViews))       { $AccountObjectsCount += $($Views.Count) }
+        If (!($SkipProcedures))  { $AccountObjectsCount += $($Procedures.Count) }
+        If (!($SkipSequences))   { $AccountObjectsCount += $($Sequences.Count) }
+        If (!($SkipStages))      { $AccountObjectsCount += $($Stages.Count) }
+        If (!($SkipFileFormats)) { $AccountObjectsCount += $($FileFormats.Count) }
         Foreach ($Database in $Databases) {
             IF ($Database.Shared -eq "False") {
                 $DbSchemas = $Schemas | Where-Object {$_.DB -eq $($Database.Name)};
@@ -36,12 +39,14 @@
                     $DBProcedures = @()
                     $DBSequences = @()
                     $DBStages = @()
-                    If (!($SkipTables))     { $DBTables += $Tables | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
-                    If (!($SkipViews))      { $DBViews += $Views | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
-                    If (!($SkipProcedures)) { $DBProcedures += $Procedures | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
-                    If (!($SkipSequences))  { $DBSequences += $Sequences | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
-                    If (!($SkipStages))     { $DBStages += $Stages | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
-                    $AllObjectsCount = $($DBTables.Count) + $($DBViews.Count) + $($DBProcedures.Count) + $($DBSequences.Count) + $($DBStages.Count)
+                    $DBFileFormats = @()
+                    If (!($SkipTables))      { $DBTables += $Tables | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    If (!($SkipViews))       { $DBViews += $Views | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    If (!($SkipProcedures))  { $DBProcedures += $Procedures | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    If (!($SkipSequences))   { $DBSequences += $Sequences | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    If (!($SkipStages))      { $DBStages += $Stages | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    If (!($SkipFileFormats)) { $DBFileFormats += $FileFormats | Where-Object {$_.DB -eq $($Database.Name) -and $_.SchemaName -eq $($Schema.SchemaName)} }
+                    $AllObjectsCount = $($DBTables.Count) + $($DBViews.Count) + $($DBProcedures.Count) + $($DBSequences.Count) + $($DBStages.Count) + $($DBFileFormats.Count)
                     $CurrentObjectCount = 0
                     [int]$CurrentObjectPercent = 0
                     If (!($SkipTables)) {
@@ -105,7 +110,7 @@
                             $AccountObjectCount ++
                             IF ($($DBProcedures.Count) -gt 0) {[int]$CurrentPercent = $CurrentProcedureCount / $($DBProcedures.Count) * 100}
                             IF ($($DBProcedures.Count) -gt 0) {[int]$CurrentObjectPercent = $CurrentObjectCount / $($AllObjectsCount) * 100}
-                            IF ($($DBProcedures.Count) -gt 0) {[int]$CurrentAccountPercent = $AccountObjectCount / $($AccountObjectsCount) * 100}`
+                            IF ($($DBProcedures.Count) -gt 0) {[int]$CurrentAccountPercent = $AccountObjectCount / $($AccountObjectsCount) * 100}
                             Write-Progress       -Activity "All object level database permissions Account : $AccountObjectCount / $AccountObjectsCount" -Status "$CurrentAccountPercent% Complete:" -PercentComplete $CurrentAccountPercent -CurrentOperation "All Account Objects"
                             Write-Progress -Id 1 -Activity "Pulling Current schema object level database permissions for database $($Database.Name) and schema $($Schema.SchemaName) : $CurrentObjectCount / $AllObjectsCount" -Status "$CurrentObjectPercent% Complete:" -PercentComplete $CurrentObjectPercent -CurrentOperation "All Objects"
                             Write-Progress -Id 2 -Activity "Pulling Current procedure level database permissions for database $($Database.Name) and schema $($Schema.SchemaName): $CurrentProcedureCount / $($DBProcedures.Count)" -Status "$CurrentPercent% Complete" -PercentComplete $CurrentPercent -CurrentOperation "Procedures"
@@ -116,7 +121,7 @@
                                 If ($Row.granted_to -eq "ROLE" -and $Row.privilege -ne "OWNERSHIP" -and $Row.grantee_name -notin "SYSADMIN","USERADMIN" ) {
                                     $ProcedureRow = New-Object -TypeName PSObject
                                     Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
-                                    Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $($Row.privilege) ON $($Procedure.ProgrammingType) $($Database.Name).$($Schema.SchemaName).$($Procedure.ProcedureName) TO ROLE $($Row.grantee_name);"
+                                    Add-Member -InputObject $ProcedureRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $($Row.privilege) ON $($Procedure.ProgrammingType) $($Database.Name).$($Schema.SchemaName).$($Procedure.ProcedureName)$($Procedure.ProcedureParameters) TO ROLE $($Row.grantee_name);"
                                     $SFschemaObjectPrivileges += $ProcedureRow
                                 }
                             }
@@ -170,6 +175,32 @@
                                     Add-Member -InputObject $StageRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
                                     Add-Member -InputObject $StageRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $($Row.privilege) ON STAGE $($Row.name) TO ROLE $($Row.grantee_name);"
                                     $SFschemaObjectPrivileges += $StageRow
+                                }
+                            }
+                        }
+                    }
+                    IF (!($SkipFileFormats)) {
+                        $CurrentFileFormatCount = 0
+                        [int]$CurrentPercent = 0
+                        ForEach ($FileFormat in $DBFileFormats) {
+                            $CurrentFileFormatCount ++
+                            $CurrentObjectCount ++
+                            $AccountObjectCount ++
+                            IF ($($DBFileFormats.Count) -gt 0) {[int]$CurrentPercent = $CurrentFileFormatCount / $($DBFileFormats.Count) * 100}
+                            IF ($($DBFileFormats.Count) -gt 0) {[int]$CurrentObjectPercent = $CurrentObjectCount / $($AllObjectsCount) * 100}
+                            IF ($($DBFileFormats.Count) -gt 0) {[int]$CurrentAccountPercent = $AccountObjectCount / $($AccountObjectsCount) * 100}
+                            Write-Progress       -Activity "All object level database permissions Account : $AccountObjectCount / $AccountObjectsCount" -Status "$CurrentAccountPercent% Complete:" -PercentComplete $CurrentAccountPercent -CurrentOperation "All Account Objects"
+                            Write-Progress -Id 1 -Activity "Pulling Current schema object level database permissions for database $($Database.Name) and schema $($Schema.SchemaName) : $CurrentObjectCount / $AllObjectsCount" -Status "$CurrentObjectPercent% Complete:" -PercentComplete $CurrentObjectPercent -CurrentOperation "All Objects"
+                            Write-Progress -Id 2 -Activity "Pulling Current File Format level database permissions for database $($Database.Name) and schema $($Schema.SchemaName)" -Status "$CurrentPercent% Complete: $CurrentFileFormatCount / $($DBFileFormats.Count)" -PercentComplete $CurrentPercent -CurrentOperation "FileFormats"
+                            $FileFormatRightsQueryResults = @()
+                            $FileFormatRightsQuery = "SHOW GRANTS ON FILE FORMAT $($Database.Name).$($Schema.SchemaName).""$($FileFormat.FileFormatName)"";"
+                            $FileFormatRightsQueryResults += Get-SFQueryResults -Query $FileFormatRightsQuery -UID $UID -Authenticator $Authenticator -Role $Role -Warehouse $Warehouse -Server $Server -Verbose:$VerbosePreference -Debug:$DebugPreference
+                            ForEach ($Row in $FileFormatRightsQueryResults) {
+                                If ($Row.granted_to -eq "ROLE" -and $Row.privilege -ne "OWNERSHIP" -and $Row.grantee_name -notin "SYSADMIN","USERADMIN" ) {
+                                    $FileFormatRow = New-Object -TypeName PSObject
+                                    Add-Member -InputObject $FileFormatRow -MemberType 'NoteProperty' -Name 'DB' -Value "$($Database.name)"
+                                    Add-Member -InputObject $FileFormatRow -MemberType 'NoteProperty' -Name 'Command' -Value "GRANT $($Row.privilege) ON FILE FORMAT $($Database.Name).$($Schema.SchemaName).""$($FileFormat.FileFormatName)"" TO ROLE $($Row.grantee_name);"
+                                    $SFschemaObjectPrivileges += $FileFormatRow
                                 }
                             }
                         }

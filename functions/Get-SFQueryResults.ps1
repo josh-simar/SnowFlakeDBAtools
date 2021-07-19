@@ -7,8 +7,8 @@
         [string]$Role,
         [string]$Warehouse,
         [string]$Server,
-        [string]$Database = "UTIL_DB",
-        [string]$Schema = "INFORMATION_SCHEMA"
+        [string]$Database,
+        [string]$Schema
     )
     PROCESS {
         Write-Verbose $Query
@@ -35,7 +35,6 @@
         Foreach($row in $QueryResults.Tables[0]) {
             $arrayList.Add(($row | Select-Object $Properties)) > $null;
         }
-
-        RETURN $arrayList
+        RETURN [PSObject]$arrayList
     }
 }

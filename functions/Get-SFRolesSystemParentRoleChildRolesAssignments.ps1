@@ -13,7 +13,7 @@
 
             ForEach ($Child in $($Parent)) {
                 If (!($Child.role -eq "SECURITYADMIN" -and $Child.grantee_name -eq "ACCOUNTADMIN") -xor ($Child.role -eq "SYSADMIN" -and $Child.grantee_name -eq "ACCOUNTADMIN") -xor ($Child.role -eq "USERADMIN" -and $Child.grantee_name -eq "SECURITYADMIN")) {
-                    $RoleGrants += "GRANT ROLE $($Child.role) TO ROLE $($Child.grantee_name)"
+                    $RoleGrants += "GRANT ROLE $($Child.role) TO ROLE $($Child.grantee_name);"
                 }
             }
         }
