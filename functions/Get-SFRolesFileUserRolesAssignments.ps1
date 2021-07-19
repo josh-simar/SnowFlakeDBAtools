@@ -11,7 +11,7 @@
 
         ForEach ($User in $UsersSection) {
             ForEach ($Role in $($User.Roles)) {
-                $UserGrants += "GRANT ROLE $Role TO USER $($User.User);"
+                $UserGrants += "GRANT ROLE $Role TO USER ""$($User.User)"";"
             }
         }
 
